@@ -324,7 +324,7 @@ export function RicoFrame13Canvas({
 
         <div className="flex items-center gap-2.5">
           <span className="text-[11px] text-[#7B8BA1] font-medium select-none hidden sm:inline">
-            Gemini 3.8 Flash
+            Gemini
           </span>
 
           <button

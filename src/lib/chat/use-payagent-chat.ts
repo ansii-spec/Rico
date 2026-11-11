@@ -307,7 +307,8 @@ export function usePayAgentChat({
                 throw new Error(event.error);
               }
             } catch (pErr) {
-              // Ignore single malformed line
+              // Skip a malformed line, but surface server errors to the user.
+              if (!(pErr instanceof SyntaxError)) throw pErr;
               console.warn("SSE parse error:", pErr);
             }
           }

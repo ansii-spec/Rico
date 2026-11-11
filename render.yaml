@@ -17,6 +17,8 @@ services:
         value: sandbox
       - key: PAYPAL_MCP_SERVER_URL
         value: https://mcp.sandbox.paypal.com/sse
+      - key: AUTH_SECRET
+        generateValue: true
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET

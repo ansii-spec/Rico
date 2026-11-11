@@ -58,7 +58,7 @@ export class GeminiAgentClient {
   }
 
   /**
-   * Stream agent response using either live Gemini 3.8 / 2.5 Flash SDK
+   * Stream agent response using either the live Gemini SDK
    * or high-fidelity simulated autonomous reasoning generator.
    */
   public async *streamResponse(
@@ -90,6 +90,11 @@ export class GeminiAgentClient {
       ...context,
       injectedSkillPrompt: skillContext.injectedPrompt,
     };
+
+    // Same policy as PayPal: production uses the simulator only when the demo is declared explicitly.
+    if (!isLive && process.env.NODE_ENV === "production" && process.env.PAYPAL_MODE !== "mock") {
+      throw new Error("GEMINI_API_KEY is not configured. Set it, or set PAYPAL_MODE=mock for a demo.");
+    }
 
     const stream = isLive && this.client
       ? this.streamLiveGemini(userMessage, enhancedContext)

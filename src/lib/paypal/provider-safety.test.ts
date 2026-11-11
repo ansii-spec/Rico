@@ -109,6 +109,36 @@ const tests: Array<[string, () => Promise<void>]> = [
     assert.equal(result.receipt.mode, "LIVE_SANDBOX");
     assert.equal(result.receipt.payerEmail, "payer@example.test");
   }],
+  ["real receipt holds only PayPal's data, with no invented payer or card", async () => {
+    realEnv();
+    stub({
+      capture: () =>
+        json(201, {
+          id: ORDER_ID,
+          status: "COMPLETED",
+          purchase_units: [
+            { payments: { captures: [{ id: "CAP-REAL-1", status: "COMPLETED", amount: { currency_code: "USD", value: "10.00" } }] } },
+          ],
+        }),
+    });
+    const { receipt } = await pay();
+    assert.equal(receipt.payerEmail, "");
+    assert.equal(receipt.sandboxAuthCode, "CAP-REAL-1");
+    assert.equal(receipt.fundingRail, "PAYPAL");
+    assert.equal(receipt.paymentMethod, "PayPal");
+    assert.equal(receipt.cardLastFour, undefined);
+  }],
+  ["real mode refuses card rails before contacting PayPal", async () => {
+    for (const fundingRail of ["VISA", "MASTERCARD"] as const) {
+      realEnv();
+      stub({});
+      await assert.rejects(
+        executeMandatePayment({ serviceName: "Test", verifiedPrice: 10, budgetCeiling: 20, fundingRail, paymentAttemptKey: "card:1" }),
+        PayPalConfigError
+      );
+      assert.equal(calls.length, 0);
+    }
+  }],
   ["create and capture send separate, valid request IDs and ask for full responses", async () => {
     realEnv();
     stub({});

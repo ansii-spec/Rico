@@ -28,6 +28,18 @@ export function derivePayPalRequestId(
   return `rico-${operation}-${digest}`;
 }
 
+/**
+ * Real PayPal orders are paid from the buyer's PayPal account. The vaulted Visa and Mastercard
+ * instruments only exist in the simulator, so a real receipt must never claim a card was charged.
+ */
+function assertPayPalRail(rail?: FundingRail | "AUTO", simulateDeclinePrimary?: boolean): void {
+  if ((rail && rail !== "PAYPAL" && rail !== "AUTO") || simulateDeclinePrimary) {
+    throw new PayPalConfigError(
+      "Card rails are not connected to real PayPal yet. Use the PayPal rail."
+    );
+  }
+}
+
 interface PayPalErrorBody {
   debug_id?: string;
   details?: Array<{ issue?: string }>;
@@ -85,9 +97,11 @@ export class PayPalOrdersClient {
   ): Promise<PayPalOrderResponse> {
     const currency = params.currency || "USD";
     const formattedAmount = params.amount.toFixed(2);
+    const isReal = payPalOAuth.getMode() === "real";
+    if (isReal) assertPayPalRail(params.fundingRail);
     const token = await payPalOAuth.getAccessToken();
 
-    if (payPalOAuth.getMode() === "real") {
+    if (isReal) {
       const requestId =
         params.paymentAttemptKey !== undefined
           ? derivePayPalRequestId(params.paymentAttemptKey, "create")
@@ -181,8 +195,9 @@ export class PayPalOrdersClient {
       paymentAttemptKey?: string;
     }
   ): Promise<{ capture: PayPalCaptureResponse; receipt: PayPalReceipt }> {
-    const token = await payPalOAuth.getAccessToken();
     const isReal = payPalOAuth.getMode() === "real";
+    if (isReal) assertPayPalRail(context?.fundingRail, context?.simulateDeclinePrimary);
+    const token = await payPalOAuth.getAccessToken();
 
     const railResolution = resolveFundingRail(context?.fundingRail || "AUTO", {
       simulateDeclinePrimary: context?.simulateDeclinePrimary,
@@ -273,18 +288,14 @@ export class PayPalOrdersClient {
           value: amountValue,
         },
         payer: {
-          email_address:
-            data.payer?.email_address || "buyer-sandbox@payagent.internal",
-          payer_id: data.payer?.payer_id || "PAYER-SANDBOX-8912",
+          email_address: data.payer?.email_address ?? "",
+          payer_id: data.payer?.payer_id ?? "",
         },
         transactionId: captureId,
-        authorizationCode: `AUTH-${Math.floor(
-          1000 + Math.random() * 9000
-        )}`,
-        create_time: new Date().toISOString(),
-        fundingRail: resolvedRail,
-        cardLastFour: instrument.lastFour,
-        routedGateway: instrument.issuerName,
+        // PayPal returns no authorization code for an order capture; the capture ID is the reference.
+        authorizationCode: captureId,
+        create_time: captureUnit.create_time ?? new Date().toISOString(),
+        fundingRail: "PAYPAL",
       };
 
       const receipt: PayPalReceipt = {
@@ -297,10 +308,7 @@ export class PayPalOrdersClient {
         verifiedPrice: context?.verifiedPrice ?? parseFloat(amountValue),
         budgetCeiling: context?.budgetCeiling ?? parseFloat(amountValue),
         currency,
-        paymentMethod:
-          resolvedRail === "PAYPAL"
-            ? "PayPal Sandbox Wallet (Primary Account)"
-            : `${instrument.label} (•••• ${instrument.lastFour})`,
+        paymentMethod: "PayPal",
         status: "COMPLETED",
         timestamp: new Date().toLocaleTimeString([], {
           hour: "2-digit",
@@ -309,10 +317,8 @@ export class PayPalOrdersClient {
         payerEmail: capture.payer.email_address,
         sandboxAuthCode: capture.authorizationCode,
         mode: "LIVE_SANDBOX",
-        fundingRail: resolvedRail,
-        cardLastFour: instrument.lastFour,
-        routedGateway: instrument.issuerName,
-        isCascaded: railResolution.isCascaded,
+        fundingRail: "PAYPAL",
+        isCascaded: false,
       };
 
       return { capture, receipt };

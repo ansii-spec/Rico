@@ -49,7 +49,7 @@ export interface MandateCreatedEvent {
 }
 
 /**
- * Calculates estimated Gemini 3.8 / 2.5 Flash reasoning cost in USD
+ * Calculates estimated Gemini reasoning cost in USD
  * Pricing: $0.075 / 1M input tokens, $0.30 / 1M output tokens
  */
 export function calculateGeminiCost(inputTokens: number, outputTokens: number): number {
